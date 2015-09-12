@@ -19,7 +19,6 @@ $phar->startBuffering();
 
 $phar->setStub($phar->createDefaultStub('index.php'));
 
-
 $phar->buildFromDirectory(BP . DS . 'loxgen');
 
 $phar->stopBuffering();
