@@ -1,5 +1,12 @@
 <?php
 
+/*
+ * NOTICE: This is a Magento 1.x local.xml generator tool
+ * in a pre-alpha stage and was written in a hurry.
+ * The code needs lots of refactoring.
+ * */
+
+
 define('DS', DIRECTORY_SEPARATOR);
 define('BP', dirname(dirname(__FILE__)));
 
@@ -17,10 +24,16 @@ final class LoxGen
     const SESSION_SAVE      = 'file';
     const ADMIN_FRONTNAME   = 'admin';
 
+    const XPATH_GLOBAL = '//global/';
+    const XPATH_ADMIN  = '//admin/';
+
+    const EDIT_OPT = 'e';
+    const DATE_OPT = 'd';
+    const KEY_OPT  = 'k';
     const HELP_OPT = 'h';
 
     const HELP_DATA = <<<EOF
-php YOUR_RUN_FILE.php \
+php loxgen.phar OR index.php [-e] \
     --mage_root_dir="MAGE_ROOT_DIR" \
     --date="DATE" \
     --key="ENCRYPTION_KEY" \
@@ -35,16 +48,33 @@ php YOUR_RUN_FILE.php \
     --db_pdo_type="DB_PDO_TYPE" \
     --session_save="SESSION_SAVE" \
     --admin_frontname="ADMIN_FRONTNAME"
+
+---------
+
+php loxgen.phar OR index.php \
+    -d \
+    -k
+
+---------
+
+[ACTIONS]
+-e: Edit
+-d: Generate date
+-k: Generate encryption key
+(The default action is "Generate" local.xml file)
 EOF;
 
 
     static private $_localXmlTemplate = BP . '/config/local.xml.template';
     static private $_localXml         = '/app/etc/local.xml';
 
+    static private $_isEdit = false;
+
+    static private $_rootDirOpt = array('mage_root_dir::');
+
     static private $_data = array();
 
     static private $_longDataOpts = array(
-        'mage_root_dir::',
         'date::',
         'key::',
         'db_prefix::',
@@ -67,11 +97,29 @@ EOF;
     {
         $result = '';
 
-        $helpOpt = getopt(self::HELP_OPT);
+        $actionOpts = self::_getActionOpts();
 
         switch (true) {
-            case isset($helpOpt[self::HELP_OPT]) || $action == 'help':
+            case $actionOpts[self::HELP_OPT] !== null
+                || $action == 'help':
                 $result = self::getHelp();
+                break;
+            case $actionOpts[self::EDIT_OPT] !== null
+                || $action == 'edit':
+                $result = self::edit();
+                break;
+            case $actionOpts[self::DATE_OPT] !== null
+                || $action == 'generate_date':
+                $result = self::generateDate();
+
+                if ($actionOpts[self::KEY_OPT] === null) {
+                    if ($action != 'generate_key') {
+                        break;
+                    }
+                }
+            case $actionOpts[self::KEY_OPT] !== null
+                || $action == 'generate_key':
+                $result = self::generateKey();
                 break;
             default:
                 $result = self::generate($data);
@@ -98,6 +146,53 @@ EOF;
         return $message;
     }
 
+    public static function edit($data = array(), $echo = false)
+    {
+        self::_isEdit(true);
+        self::_setData($data);
+
+        $data = self::_getData();
+
+        $result  = self::_saveXml($data, true, self::$_opts);
+        $message = self::_getResultMessage($result);
+
+        if ($echo) {
+            echo $message . "\n";
+        }
+
+        return $message;
+    }
+
+    public static function generateDate($echo = false)
+    {
+        $data       = self::_getDateData();
+        $actionOpts = array('date' => true);
+
+        $result  = self::_saveXml($data, true, $actionOpts);
+        $message = self::_getResultMessage($result);
+
+        if ($echo) {
+            echo $message . "\n";
+        }
+
+        return $message;
+    }
+
+    public static function generateKey($echo = false)
+    {
+        $data       = self::_getEncryptionKeyData();
+        $actionOpts = array('key' => true);
+
+        $result  = self::_saveXml($data, true, $actionOpts);
+        $message = self::_getResultMessage($result);
+
+        if ($echo) {
+            echo $message . "\n";
+        }
+
+        return $message;
+    }
+
     public static function getHelp($echo = false)
     {
         if ($echo) {
@@ -107,24 +202,116 @@ EOF;
         return self::HELP_DATA;
     }
 
+    private static function _getActionOpts()
+    {
+        $opts    = array();
+        $actions = array(
+            self::HELP_OPT,
+            self::EDIT_OPT,
+            self::DATE_OPT,
+            self::KEY_OPT
+        );
+
+        foreach ($actions as $action) {
+            $opt = getopt($action);
+
+            $opts[$action] = isset($opt[$action])
+                ? $opt[$action] : null;
+        }
+
+        return $opts;
+    }
+
     private static function _getData()
     {
         self::_setOpts();
 
+        if (self::$_data) {
+            return self::$_data;
+        }
+
+        $xGlobal = self::XPATH_GLOBAL;
+        $xAdmin  = self::XPATH_ADMIN;
+
         $data = array(
-            'date'               => self::_getOpt('date', self::_getDate()),
-            'key'                => self::_getOpt('key', self::_getEncryptionKey()),
-            'db_prefix'          => self::_getOpt('db_prefix', ''),
-            'db_host'            => self::_getOpt('db_host', ''),
-            'db_user'            => self::_getOpt('db_user', ''),
-            'db_pass'            => self::_getOpt('db_pass', ''),
-            'db_name'            => self::_getOpt('db_name', ''),
-            'db_init_statemants' => self::_getOpt('db_init_statemants', self::DB_INIT_STATEMENT),
-            'db_model'           => self::_getOpt('db_model', self::DB_MODEL),
-            'db_type'            => self::_getOpt('db_type', self::DB_TYPE),
-            'db_pdo_type'        => self::_getOpt('db_pdo_type', self::DB_PDO_TYPE),
-            'session_save'       => self::_getOpt('session_save', self::SESSION_SAVE),
-            'admin_frontname'    => self::_getOpt('admin_frontname', self::ADMIN_FRONTNAME)
+            'db_prefix' => array(
+                'xpath' => "{$xGlobal}resources/db/table_prefix",
+                'value' => self::_getOpt('db_prefix', '')
+            ),
+            'db_host' => array(
+                'xpath' => "{$xGlobal}resources/default_setup/connection/host",
+                'value' => self::_getOpt('db_host', '')
+            ),
+            'db_user' => array(
+                'xpath' => "{$xGlobal}resources/default_setup/connection/username",
+                'value' => self::_getOpt('db_user', '')
+            ),
+            'db_pass' => array(
+                'xpath' => "{$xGlobal}resources/default_setup/connection/password",
+                'value' => self::_getOpt('db_pass', '')
+            ),
+            'db_name' => array(
+                'xpath' => "{$xGlobal}resources/default_setup/connection/dbname",
+                'value' => self::_getOpt('db_name', '')
+            ),
+            'db_init_statemants' => array(
+                'xpath' => "{$xGlobal}resources/default_setup/connection/initStatements",
+                'value' => self::_getOpt('db_init_statemants', self::DB_INIT_STATEMENT)
+            ),
+            'db_model' => array(
+                'xpath' => "{$xGlobal}resources/default_setup/connection/model",
+                'value' => self::_getOpt('db_model', self::DB_MODEL)
+            ),
+            'db_type' => array(
+                'xpath' => "{$xGlobal}resources/default_setup/connection/type",
+                'value' => self::_getOpt('db_type', self::DB_TYPE)
+            ),
+            'db_pdo_type' => array(
+                'xpath' => "{$xGlobal}resources/default_setup/connection/pdoType",
+                'value' => self::_getOpt('db_pdo_type', self::DB_PDO_TYPE)
+            ),
+            'session_save' => array(
+                'xpath' => "{$xGlobal}save_session",
+                'value' => self::_getOpt('session_save', self::SESSION_SAVE)
+            ),
+            'admin_frontname' => array(
+                'xpath' => "{$xAdmin}routers/adminhtml/args/frontName",
+                'value' => self::_getOpt('admin_frontname', self::ADMIN_FRONTNAME)
+            )
+        );
+
+        $data = array_merge(
+            $data,
+            self::_getDateData(),
+            self::_getEncryptionKeyData()
+        );
+
+        return $data;
+    }
+
+    private static function _getDateData()
+    {
+        $xGlobal = self::XPATH_GLOBAL;
+
+        $data = array(
+            'date' => array(
+                'xpath' => "{$xGlobal}install/date",
+                'value' => self::_getOpt('date', self::_getDate())
+            )
+        );
+
+        return $data;
+    }
+
+    private static function _getEncryptionKeyData()
+    {
+        $xGlobal = self::XPATH_GLOBAL;
+
+        $data = array(
+            'key' => array(
+                'xpath' => "{$xGlobal}crypt/key",
+                'value' => self::_getOpt('key', self::_getEncryptionKey())
+            )
         );
 
         return $data;
@@ -140,9 +327,11 @@ EOF;
         $data     = self::_getData();
         $template = file_get_contents(self::$_localXmlTemplate);
 
-        foreach ($data as $index => $value) {
+        foreach ($data as $node => $nodeData) {
             $template = str_replace(
-                '{{' . $index . '}}', '<![CDATA[' . $value . ']]>', $template
+                '{{' . $node . '}}',
+                '<![CDATA[' . $nodeData['value'] . ']]>',
+                $template
             );
         }
 
@@ -154,13 +343,21 @@ EOF;
         return is_readable(self::$_localXmlTemplate);
     }
 
+    private static function _isLocalXmlWritable()
+    {
+        return is_writable(self::_getLocalXmlPath());
+    }
+
+    // TODO: Notice that this function together with _getTemplateContents
+    // have the same functionality as _saveXml.
+    // So, when I have time, I might get rid of them and use _saveXml instead.
     private static function _putLocalXmlContents()
     {
         if ($result = self::_isTemplateReadable()) {
             $template = self::_getTemplateContents();
 
             $result = file_put_contents(
-                self::_getLocalXmlPath(self::$_localXml),
+                self::_getLocalXmlPath(),
                 $template
             );
         }
@@ -168,13 +365,80 @@ EOF;
         return $result;
     }
 
+    private static function _saveXml($data, $filterNodes = false, $specificNodes = array())
+    {
+        $result  = false;
+        $canSave = false;
+
+        if (!self::_isLocalXmlWritable()) {
+            return $result;
+        }
+
+        if ($filterNodes && empty($specificNodes)) {
+            return $result;
+        }
+
+        try {
+            $localXml = self::_getLocalXmlPath();
+
+            $xml = simpleXML_load_file(self::_getLocalXmlPath());
+
+            foreach ($data as $key => $node) {
+                if ($filterNodes && !isset($specificNodes[$key])) {
+                    continue;
+                }
+
+                $canSave = true;
+
+                $xParts = str_split(
+                    $node['xpath'],
+                    strrpos($node['xpath'], '/')
+                );
+
+                $xpath    = $xParts[0];
+                $nodeName = ltrim($xParts[1], '/');
+
+                $xpath = $xml->xpath($xpath);
+
+                list($_node) = $xpath;
+
+                $_node->{$nodeName} = NULL;
+
+                $_node = dom_import_simplexml($_node->{$nodeName});
+
+                $nodeOwner = $_node->ownerDocument;
+
+                $_node->appendChild(
+                    $nodeOwner->createCDATASection($node['value'])
+                );
+            }
+
+
+            if ($canSave) {
+                $xmlContent = $xml->asXML();
+
+                $result = file_put_contents($localXml, $xmlContent);
+            }
+        } catch (Exception $e)
+        {}
+
+        return $result;
+    }
+
     private static function _getResultMessage($result)
     {
         $message = $result
-            ? 'local.xml file has been generated'
-            : 'local.xml file could not be generated';
+            ? 'The requested action was executed successfully'
+            : 'Could not execute the requested action';
 
         return $message;
+    }
+
+    private static function _isEdit($status = false)
+    {
+        self::$_isEdit = $status;
+
+        return self::$_isEdit;
     }
 
     private static function _setOpts()
@@ -208,9 +472,11 @@ EOF;
 
     private static function _getMageRootDir()
     {
-        $dir = self::_getDir(
-            self::_getOpt('mage_root_dir', getcwd())
-        );
+        $opt = getopt('', self::$_rootDirOpt);
+
+        $dir = isset($opt['mage_root_dir'])
+            ? self::_getDir($opt['mage_root_dir'])
+            : getcwd();
 
         return $dir;
     }
@@ -222,11 +488,15 @@ EOF;
 
     private static function _getDate()
     {
-        return date('r', time());
+        return !self::$_isEdit ? date('r', time()) : '';
     }
 
     private static function _getEncryptionKey()
     {
+        if (self::$_isEdit) {
+            return '';
+        }
+
         $len   = 10;
         $chars = self::CHARS_LOWER . self::CHARS_UPPER . self::CHARS_DIGITS;
 
