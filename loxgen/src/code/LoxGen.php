@@ -62,6 +62,7 @@ php loxgen.phar OR index.php \
 -d: Generate date
 -k: Generate encryption key
 (The default action is "Generate" local.xml file)
+(There is no need to specify an option for default action)
 EOF;
 
 
