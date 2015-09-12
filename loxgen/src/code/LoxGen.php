@@ -53,7 +53,8 @@ php loxgen.phar OR index.php [-e] \
 
 php loxgen.phar OR index.php \
     -d \
-    -k
+    -k \
+    --mage_root_dir="MAGE_ROOT_DIR"
 
 ---------
 
