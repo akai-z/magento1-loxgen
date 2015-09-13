@@ -34,7 +34,9 @@ final class LoxGen
     const HELP_OPT = 'h';
 
     const HELP_DATA = <<<EOF
-php loxgen.phar OR index.php [-e] \
+[Generate or edit local.xml]:
+
+php loxgen.phar [-e] \
     --mage_root_dir="MAGE_ROOT_DIR" \
     --date="DATE" \
     --key="ENCRYPTION_KEY" \
@@ -52,17 +54,33 @@ php loxgen.phar OR index.php [-e] \
 
 ---------
 
-php loxgen.phar OR index.php \
+[Generate install date or encryption key (Edit option can be used)]:
+
+php loxgen.phar \
     -d \
     -k \
+    [-e \]
     --mage_root_dir="MAGE_ROOT_DIR"
 
 ---------
 
-[ACTIONS]
+[Read local.xml]:
+
+php loxgen.phar \
+    -d \
+    -k \
+    [-e \]
+    --mage_root_dir="MAGE_ROOT_DIR"
+
+---------
+
+[ACTIONS]:
+
+-r: Read
 -e: Edit
 -d: Generate date
 -k: Generate encryption key
+
 (The default action is "Generate" local.xml file)
 (There is no need to specify an option for default action)
 EOF;
