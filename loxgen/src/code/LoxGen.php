@@ -67,9 +67,7 @@ php loxgen.phar \
 [Read local.xml]:
 
 php loxgen.phar \
-    -d \
-    -k \
-    [-e \]
+    -r
     --mage_root_dir="MAGE_ROOT_DIR"
 
 ---------
