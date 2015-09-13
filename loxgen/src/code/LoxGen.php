@@ -27,6 +27,7 @@ final class LoxGen
     const XPATH_GLOBAL = '//global/';
     const XPATH_ADMIN  = '//admin/';
 
+    const READ_OPT = 'r';
     const EDIT_OPT = 'e';
     const DATE_OPT = 'd';
     const KEY_OPT  = 'k';
@@ -106,6 +107,10 @@ EOF;
                 || $action == 'help':
                 $result = self::getHelp();
                 break;
+            case $actionOpts[self::READ_OPT] !== null
+                || $action == 'read':
+                $result = self::read();
+                break;
             case $actionOpts[self::EDIT_OPT] !== null
                 || $action == 'edit':
                 $result = self::edit();
@@ -165,6 +170,17 @@ EOF;
         return $message;
     }
 
+    public static function read($echo = false)
+    {
+        $result = self::_readLocalXml();
+
+        if ($echo) {
+            echo $result . "\n";
+        }
+
+        return $result;
+    }
+
     public static function generateDate($echo = false)
     {
         $data       = self::_getDateData();
@@ -209,6 +225,7 @@ EOF;
         $opts    = array();
         $actions = array(
             self::HELP_OPT,
+            self::READ_OPT,
             self::EDIT_OPT,
             self::DATE_OPT,
             self::KEY_OPT
@@ -345,6 +362,11 @@ EOF;
         return is_readable(self::$_localXmlTemplate);
     }
 
+    private static function _isLocalXmlReadable()
+    {
+        return is_readable(self::_getLocalXmlPath());
+    }
+
     private static function _isLocalXmlWritable()
     {
         return is_writable(self::_getLocalXmlPath());
@@ -425,6 +447,18 @@ EOF;
         {}
 
         return $result;
+    }
+
+    private static function _readLocalXml()
+    {
+        $contents = 'null';
+
+        if (self::_isLocalXmlReadable()) {
+            $localXml = self::_getLocalXmlPath();
+            $contents = file_get_contents($localXml);
+        }
+
+        return $contents;
     }
 
     private static function _getResultMessage($result)
