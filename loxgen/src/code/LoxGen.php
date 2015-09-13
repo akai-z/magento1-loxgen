@@ -114,7 +114,16 @@ EOF;
             case $actionOpts[self::EDIT_OPT] !== null
                 || $action == 'edit':
                 $result = self::edit();
-                break;
+
+                if ($actionOpts[self::DATE_OPT] !== null
+                    || $actionOpts[self::KEY_OPT] !== null
+                    || $action == 'generate_date'
+                    || $action == 'generate_key'
+                    ) {
+                    // Do nothing
+                } else {
+                    break;
+                }
             case $actionOpts[self::DATE_OPT] !== null
                 || $action == 'generate_date':
                 $result = self::generateDate();
@@ -299,11 +308,13 @@ EOF;
             )
         );
 
-        $data = array_merge(
-            $data,
-            self::_getDateData(),
-            self::_getEncryptionKeyData()
-        );
+        if (!self::$_isEdit) {
+            $data = array_merge(
+                $data,
+                self::_getDateData(),
+                self::_getEncryptionKeyData()
+            );
+        }
 
         return $data;
     }
@@ -524,15 +535,11 @@ EOF;
 
     private static function _getDate()
     {
-        return !self::$_isEdit ? date('r', time()) : '';
+        return date('r', time());
     }
 
     private static function _getEncryptionKey()
     {
-        if (self::$_isEdit) {
-            return '';
-        }
-
         $len   = 10;
         $chars = self::CHARS_LOWER . self::CHARS_UPPER . self::CHARS_DIGITS;
 
