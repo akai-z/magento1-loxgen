@@ -84,7 +84,7 @@ php loxgen.phar \
 EOF;
 
 
-    static private $_localXmlTemplate = BP . '/config/local.xml.template';
+    static private $_localXmlTemplate = '/config/local.xml.template';
     static private $_localXml         = '/app/etc/local.xml';
 
     static private $_isEdit = false;
@@ -371,7 +371,7 @@ EOF;
     private static function _getTemplateContents()
     {
         $data     = self::_getData();
-        $template = file_get_contents(self::$_localXmlTemplate);
+        $template = file_get_contents(self::_getLocalXmlTemplatePath());
 
         foreach ($data as $node => $nodeData) {
             $template = str_replace(
@@ -386,7 +386,7 @@ EOF;
 
     private static function _isTemplateReadable()
     {
-        return is_readable(self::$_localXmlTemplate);
+        return is_readable(self::_getLocalXmlTemplatePath());
     }
 
     private static function _isLocalXmlReadable()
@@ -526,6 +526,11 @@ EOF;
         }
 
         return $option;
+    }
+
+    private static function _getLocalXmlTemplatePath()
+    {
+        return BP . self::$_localXmlTemplate;
     }
 
     private static function _getLocalXmlPath()
